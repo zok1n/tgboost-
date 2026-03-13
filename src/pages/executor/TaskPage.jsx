@@ -6,12 +6,34 @@ import { useStore } from '../../store/useStore';
 const typeLabels = { channel: 'Канал', chat: 'Чат' };
 const typeIcons = { channel: Hash, chat: MessageCircle };
 
+const getChannelUsernameFromLink = (link) => {
+  if (!link) return null;
+  try {
+    const url = new URL(link);
+    if (url.hostname !== 't.me') return null;
+    const path = url.pathname.replace(/^\/+/, '');
+    if (!path) return null;
+    const [username] = path.split('/');
+    return username || null;
+  } catch {
+    if (link.startsWith('https://t.me/')) {
+      const rest = link.replace('https://t.me/', '');
+      const [username] = rest.split('/');
+      return username || null;
+    }
+    if (link.startsWith('@')) {
+      return link.slice(1) || null;
+    }
+    return null;
+  }
+};
+
 export default function TaskPage() {
   const { id } = useParams();
   const getTaskById = useStore((s) => s.getTaskById);
   const currentUser = useStore((s) => s.users[s.currentUserId] || s.users.perf1);
   const completedTasks = useStore((s) => s.completedTasks);
-  const simulateCheckSubscription = useStore((s) => s.simulateCheckSubscription);
+  const completeTask = useStore((s) => s.completeTask);
   const task = getTaskById(id);
 
   const [username, setUsername] = useState(currentUser?.telegramUsername || '');
@@ -29,9 +51,37 @@ export default function TaskPage() {
     }
     setStatus('loading');
     setError('');
-    const result = await simulateCheckSubscription(id, username.trim());
-    setStatus(result.success ? 'success' : 'error');
-    setError(result.error || '');
+    const channelUsername = getChannelUsernameFromLink(task.link);
+    if (!channelUsername) {
+      setStatus('error');
+      setError('Канал не найден, проверьте ссылку');
+      return;
+    }
+
+    const token = import.meta.env.VITE_BOT_TOKEN;
+    if (!token) {
+      setStatus('error');
+      setError('Токен бота не настроен');
+      return;
+    }
+
+    try {
+      const url = `https://api.telegram.org/bot${token}/getChat?chat_id=@${channelUsername}`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (response.ok && data?.ok) {
+        const result = completeTask(id, currentUser.id, username.trim(), task.price);
+        setStatus(result.success ? 'success' : 'error');
+        setError(result.error || '');
+      } else {
+        setStatus('error');
+        setError('Канал не найден, проверьте ссылку');
+      }
+    } catch (e) {
+      setStatus('error');
+      setError('Ошибка проверки подписки, попробуйте позже');
+    }
   };
 
   if (!task) {
