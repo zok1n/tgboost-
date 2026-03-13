@@ -6,6 +6,9 @@ import { useStore } from '../../store/useStore';
 const typeLabels = { channel: 'Канал', chat: 'Чат' };
 const typeIcons = { channel: Hash, chat: MessageCircle };
 
+// Токен бота берётся из Vite-окружения и подставляется на этапе билда
+const BOT_TOKEN = import.meta.env.VITE_BOT_TOKEN;
+
 const getChannelUsernameFromLink = (link) => {
   if (!link) return null;
   try {
@@ -58,7 +61,7 @@ export default function TaskPage() {
       return;
     }
 
-    const token = import.meta.env.VITE_BOT_TOKEN;
+    const token = BOT_TOKEN;
     if (!token) {
       setStatus('error');
       setError('Токен бота не настроен');
